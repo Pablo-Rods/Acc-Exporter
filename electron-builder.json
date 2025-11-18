@@ -1,0 +1,45 @@
+{
+    "appId": "com.ayesa.acc-exporter",
+    "productName": "ACC Metadata Exporter",
+    "directories": {
+        "buildResources": "assets",
+        "output": "dist"
+    },
+    "files": [
+        "dist/**/*",
+        "node_modules/**/*",
+        "package.json"
+    ],
+    "win": {
+        "target": [
+            "nsis",
+            "portable"
+        ],
+        "certificateFile": null,
+        "certificatePassword": null,
+        "signingHashAlgorithms": [
+            "sha256"
+        ]
+    },
+    "nsis": {
+        "oneClick": false,
+        "allowToChangeInstallationDirectory": true,
+        "createDesktopShortcut": true,
+        "createStartMenuShortcut": true,
+        "shortcutName": "ACC Metadata Exporter"
+    },
+    "mac": {
+        "target": [
+            "dmg",
+            "zip"
+        ],
+        "category": "public.app-category.utilities"
+    },
+    "linux": {
+        "target": [
+            "AppImage",
+            "deb"
+        ],
+        "category": "Utility"
+    }
+}
