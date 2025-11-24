@@ -1,7 +1,7 @@
 import axios from "axios";
 import { ipcService } from "./ipcService";
 
-const API_BASE = "http://localhost:5188/api";
+const API_BASE = "http://172.23.6.174:30025/api";
 
 interface TokenResponse {
   accessToken: string;
