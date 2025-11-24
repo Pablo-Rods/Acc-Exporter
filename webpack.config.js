@@ -54,50 +54,57 @@ module.exports = [
     }
   },
   // Renderer process
- {
-  name: 'renderer',
-  mode: 'development',
-  entry: './src/renderer/index.tsx',
-  target: 'electron-renderer',
-  output: {
-    path: path.resolve(__dirname, 'dist/renderer'),
-    filename: 'renderer.js',
-    globalObject: 'self',
-  },
-  devServer: {
-    port: 3000,
-    hot: false,  // Disable hot module replacement
-    liveReload: true,  // Use live reload instead
-    historyApiFallback: true,
-    headers: {
-      'Access-Control-Allow-Origin': '*'
-    }
-  },
-  devtool: 'source-map',
-  module: {
-    rules: [
-      {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
-        exclude: /node_modules/
-      },
-      {
-        test: /\.css$/,
-        use: ['style-loader', 'css-loader']
+  {
+    name: 'renderer',
+    mode: 'development',
+    entry: './src/renderer/index.tsx',
+    target: 'web',
+    output: {
+      path: path.resolve(__dirname, 'dist/renderer'),
+      filename: 'renderer.js',
+      globalObject: 'self',
+    },
+    devServer: {
+      port: 3000,
+      hot: false,
+      liveReload: true,
+      historyApiFallback: true,
+      headers: {
+        'Access-Control-Allow-Origin': '*'
       }
+    },
+    devtool: 'source-map',
+    module: {
+      rules: [
+        {
+          test: /\.tsx?$/,
+          use: 'ts-loader',
+          exclude: /node_modules/
+        },
+        {
+          test: /\.css$/,
+          use: ['style-loader', 'css-loader']
+        }
+      ]
+    },
+    resolve: {
+      extensions: ['.tsx', '.ts', '.js'],
+      alias: {
+        '@': path.resolve(__dirname, 'src')
+      },
+      fallback: {
+        events: false,
+        path: false,
+        fs: false,
+        util: false,
+        assert: false
+      }
+    },
+    plugins: [
+      new HtmlWebpackPlugin({
+        template: './public/index.html',
+        filename: 'index.html'
+      })
     ]
-  },
-  resolve: {
-    extensions: ['.tsx', '.ts', '.js'],
-    alias: {
-      '@': path.resolve(__dirname, 'src')
-    }
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: './public/index.html',
-      filename: 'index.html'
-    })
-  ]
-}
+  }
 ];

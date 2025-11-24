@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   Card,
   CardContent,
@@ -12,21 +12,20 @@ import {
   Typography,
   Box,
   Alert,
-  Collapse,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
+  AlertColor,
 } from "@mui/material";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import FolderIcon from "@mui/icons-material/Folder";
-import { accService, Project, Folder } from "../services/accService";
+import { accService, Project, FolderTreeNode } from "../services/accService";
+import { FolderTree, FolderNode } from "./FolderTree";
 
 interface ProjectSelectorProps {
   accessToken: string;
-  onProjectSelect: (projectId: string) => void;
-  onFolderSelect: (folderId: string) => void;
+  onProjectSelect: (projectData: { projectId: string; hubId: string }) => void;
+  onFolderSelect: (folderId: string, folderName: string) => void;
+}
+
+interface AlertState {
+  message: string;
+  severity: AlertColor;
 }
 
 export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
@@ -35,122 +34,183 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   onFolderSelect,
 }) => {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProject, setSelectedProject] = useState<string>("");
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set()
-  );
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [folderTree, setFolderTree] = useState<FolderNode[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [loadingTree, setLoadingTree] = useState(false);
+  const [alert, setAlert] = useState<AlertState | null>(null);
+
+  // Cache de árboles por projectId
+  const treeCache = useRef<Map<string, FolderNode[]>>(new Map());
 
   // Cargar proyectos al montar el componente
   useEffect(() => {
     const loadProjects = async () => {
       try {
-        setLoading(true);
-        accService.setAuthToken(accessToken);
+        setLoadingProjects(true);
+        setAlert(null);
+
+        if (!accessToken) {
+          throw new Error("Token de acceso no disponible");
+        }
+
         const data = await accService.getProjects();
+
+        if (!data || data.length === 0) {
+          setAlert({
+            message: "No hay proyectos disponibles",
+            severity: "info",
+          });
+        }
+
         setProjects(data);
       } catch (err) {
-        setError("Error cargando proyectos");
+        const errorMessage =
+          err instanceof Error ? err.message : "Error desconocido";
+        setAlert({
+          message: `Error cargando proyectos: ${errorMessage}`,
+          severity: "error",
+        });
         console.error(err);
       } finally {
-        setLoading(false);
+        setLoadingProjects(false);
       }
     };
 
     loadProjects();
   }, [accessToken]);
 
-  // Cargar carpetas cuando se selecciona un proyecto
-  useEffect(() => {
-    const loadFolders = async () => {
-      if (!selectedProject) return;
+  // Función recursiva para cargar todo el árbol de carpetas
+  const loadFolderTreeRecursively = useCallback(
+    async (
+      project: Project,
+      folderId?: string
+    ): Promise<FolderTreeNode[]> => {
+      const folders = await accService.getFolders(
+        project.id,
+        project.hubId,
+        folderId
+      );
 
-      try {
-        setLoading(true);
-        const data = await accService.getFolders(selectedProject);
-        setFolders(data);
-        onProjectSelect(selectedProject);
-      } catch (err) {
-        setError("Error cargando carpetas");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
+      // Procesar en paralelo todas las subcarpetas
+      const nodesWithChildren = await Promise.all(
+        folders.map(async (folder) => {
+          if (folder.isFolder) {
+            // Cargar recursivamente los hijos de esta carpeta
+            const children = await loadFolderTreeRecursively(
+              project,
+              folder.id
+            );
+            return {
+              ...folder,
+              children: children.length > 0 ? children : undefined,
+            };
+          } else {
+            // Es un archivo, no tiene hijos
+            return folder;
+          }
+        })
+      );
 
-    loadFolders();
-  }, [selectedProject, onProjectSelect]);
+      return nodesWithChildren;
+    },
+    []
+  );
 
-  const handleProjectChange = (event: SelectChangeEvent) => {
-    setSelectedProject(event.target.value);
-    setFolders([]);
-    setExpandedFolders(new Set());
-  };
+  // Convertir FolderTreeNode a FolderNode (formato del componente FolderTree)
+  const convertToFolderNode = useCallback(
+    (node: FolderTreeNode): FolderNode => {
+      return {
+        id: node.id,
+        name: node.name,
+        children: node.children?.map(convertToFolderNode),
+      };
+    },
+    []
+  );
 
-  const handleFolderToggle = (folderId: string) => {
-    const newExpanded = new Set(expandedFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
+  const handleProjectChange = async (event: SelectChangeEvent) => {
+    const projectId = event.target.value;
+    const project = projects.find((p) => p.id === projectId);
+
+    if (!project) return;
+
+    setSelectedProject(project);
+    setAlert(null);
+    onProjectSelect({ projectId: project.id, hubId: project.hubId });
+
+    // Verificar si ya tenemos el árbol en cache
+    const cachedTree = treeCache.current.get(project.id);
+    if (cachedTree) {
+      setFolderTree(cachedTree);
+      return;
     }
-    setExpandedFolders(newExpanded);
+
+    // Cargar árbol completo recursivamente
+    try {
+      setLoadingTree(true);
+      const tree = await loadFolderTreeRecursively(project);
+
+      // Convertir al formato FolderNode (incluye carpetas y archivos)
+      const folderNodes = tree.map(convertToFolderNode);
+
+      setFolderTree(folderNodes);
+
+      // Guardar en cache
+      treeCache.current.set(project.id, folderNodes);
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Error desconocido";
+      setAlert({
+        message: `Error cargando árbol de carpetas: ${errorMessage}`,
+        severity: "error",
+      });
+      console.error(err);
+    } finally {
+      setLoadingTree(false);
+    }
   };
 
   const handleFolderSelect = (folderId: string) => {
-    onFolderSelect(folderId);
-  };
+    // Buscar el nombre de la carpeta en el árbol
+    const findFolderName = (nodes: FolderNode[], id: string): string | null => {
+      for (const node of nodes) {
+        if (node.id === id) {
+          return node.name;
+        }
+        if (node.children) {
+          const found = findFolderName(node.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
 
-  const renderFolderTree = (folderList: Folder[], depth = 0) => {
-    return (
-      <List sx={{ pl: depth * 2 }}>
-        {folderList.map((folder) => (
-          <React.Fragment key={folder.id}>
-            <ListItem disablePadding>
-              <ListItemButton
-                onClick={() => {
-                  handleFolderToggle(folder.id);
-                  handleFolderSelect(folder.id);
-                }}
-                sx={{ pl: 2 }}
-              >
-                <FolderIcon sx={{ mr: 1, fontSize: 20 }} />
-                <ListItemText
-                  primary={folder.name}
-                  primaryTypographyProps={{ variant: "body2" }}
-                />
-              </ListItemButton>
-            </ListItem>
-            {folder.children && folder.children.length > 0 && (
-              <Collapse
-                in={expandedFolders.has(folder.id)}
-                timeout="auto"
-                unmountOnExit
-              >
-                {renderFolderTree(folder.children, depth + 1)}
-              </Collapse>
-            )}
-          </React.Fragment>
-        ))}
-      </List>
-    );
+    const folderName = findFolderName(folderTree, folderId) || folderId;
+    onFolderSelect(folderId, folderName);
   };
 
   return (
     <Card>
       <CardHeader title="Seleccionar Proyecto y Carpeta" />
       <CardContent>
-        {error && <Alert severity="error">{error}</Alert>}
+        {alert && (
+          <Alert
+            severity={alert.severity}
+            sx={{ mb: 2 }}
+            onClose={() => setAlert(null)}
+          >
+            {alert.message}
+          </Alert>
+        )}
 
-        <FormControl fullWidth sx={{ mb: 3 }}>
+        <FormControl fullWidth sx={{ mb: 3 }} disabled={loadingProjects}>
           <InputLabel>Proyecto</InputLabel>
           <Select
-            value={selectedProject}
+            value={selectedProject?.id || ""}
             onChange={handleProjectChange}
             label="Proyecto"
-            disabled={loading || projects.length === 0}
+            disabled={loadingProjects || projects.length === 0}
           >
             <MenuItem value="">
               <em>Selecciona un proyecto</em>
@@ -163,19 +223,28 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
           </Select>
         </FormControl>
 
-        {loading && <CircularProgress size={24} />}
-
-        {selectedProject && folders.length > 0 && (
-          <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Carpetas:
+        {loadingTree && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <CircularProgress size={24} />
+            <Typography variant="body2">
+              Cargando árbol de carpetas...
             </Typography>
-            {renderFolderTree(folders)}
           </Box>
         )}
 
-        {selectedProject && folders.length === 0 && !loading && (
-          <Alert severity="info">No hay carpetas en este proyecto</Alert>
+        {selectedProject && folderTree.length > 0 && !loadingTree && (
+          <Box>
+            <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>
+              Carpetas y archivos del proyecto:
+            </Typography>
+            <FolderTree folders={folderTree} onSelect={handleFolderSelect} />
+          </Box>
+        )}
+
+        {selectedProject && folderTree.length === 0 && !loadingTree && (
+          <Alert severity="info">
+            No hay carpetas en este proyecto
+          </Alert>
         )}
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 export const ipcService = {
   // Auth
-  async openLoginWindow(): Promise<void> {
-    return window.electronAPI.openLoginWindow();
+  async openLoginWindow(authUrl: string): Promise<string | null> {
+    return window.electronAPI.openLoginWindow(authUrl);
   },
 
   async saveToken(key: string, value: string): Promise<void> {
