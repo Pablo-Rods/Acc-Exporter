@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 import { ipcService } from "./ipcService";
 
-const API_BASE = "http://localhost:5188/api";
+const API_BASE = "http://172.23.6.174:30025/api";
 
 export interface Project {
   id: string;

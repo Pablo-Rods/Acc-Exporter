@@ -3,7 +3,7 @@
     "productName": "ACC Metadata Exporter",
     "directories": {
         "buildResources": "assets",
-        "output": "dist"
+        "output": "release"
     },
     "files": [
         "dist/**/*",
@@ -19,7 +19,8 @@
         "certificatePassword": null,
         "signingHashAlgorithms": [
             "sha256"
-        ]
+        ],
+        "forceCodeSigning": false
     },
     "nsis": {
         "oneClick": false,
