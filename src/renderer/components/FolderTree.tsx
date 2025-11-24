@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   Box,
   List,
@@ -29,66 +29,76 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   folders,
   onSelect,
 }) => {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<string[]>([]);
 
-  const handleToggle = (folderId: string) => {
-    const newExpanded = new Set(expanded);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpanded(newExpanded);
-  };
+  const expandedSet = useMemo(() => new Set(expandedIds), [expandedIds]);
 
-  const renderFolder = (folder: FolderNode, depth = 0) => {
-    const isExpanded = expanded.has(folder.id);
-    const hasChildren = folder.children && folder.children.length > 0;
+  const handleToggle = useCallback((folderId: string) => {
+    setExpandedIds((prev) => {
+      if (prev.includes(folderId)) {
+        return prev.filter((id) => id !== folderId);
+      } else {
+        return [...prev, folderId];
+      }
+    });
+  }, []);
 
-    return (
-      <Box key={folder.id}>
-        <ListItem disablePadding sx={{ pl: depth * 2 }}>
-          <ListItemButton
-            onClick={() => {
-              if (hasChildren) {
-                handleToggle(folder.id);
-              }
-              onSelect(folder.id);
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>
-              {hasChildren ? (
-                isExpanded ? (
-                  <FolderOpenIcon fontSize="small" />
+  const renderFolder = useCallback(
+    (folder: FolderNode, depth = 0): React.ReactNode => {
+      const isExpanded = expandedSet.has(folder.id);
+      const hasChildren = folder.children && folder.children.length > 0;
+
+      return (
+        <Box key={folder.id}>
+          <ListItem disablePadding sx={{ pl: depth * 2 }}>
+            <ListItemButton
+              onClick={() => {
+                if (hasChildren) {
+                  handleToggle(folder.id);
+                }
+                onSelect(folder.id);
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>
+                {hasChildren ? (
+                  isExpanded ? (
+                    <FolderOpenIcon fontSize="small" />
+                  ) : (
+                    <FolderIcon fontSize="small" />
+                  )
                 ) : (
-                  <FolderIcon fontSize="small" />
-                )
-              ) : (
-                <FolderIcon fontSize="small" sx={{ opacity: 0.5 }} />
+                  <FolderIcon fontSize="small" sx={{ opacity: 0.5 }} />
+                )}
+              </ListItemIcon>
+              <ListItemText
+                primary={folder.name}
+                primaryTypographyProps={{ variant: "body2" }}
+              />
+              {hasChildren && (
+                <Box sx={{ display: "flex", alignItems: "center" }}>
+                  {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
+                </Box>
               )}
-            </ListItemIcon>
-            <ListItemText
-              primary={folder.name}
-              primaryTypographyProps={{ variant: "body2" }}
-            />
-            {hasChildren && (
-              <Box sx={{ display: "flex", alignItems: "center" }}>
-                {isExpanded ? <ExpandMoreIcon /> : <ChevronRightIcon />}
-              </Box>
-            )}
-          </ListItemButton>
-        </ListItem>
+            </ListItemButton>
+          </ListItem>
 
-        {hasChildren && (
-          <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-            <List component="div" disablePadding>
-              {folder.children!.map((child) => renderFolder(child, depth + 1))}
-            </List>
-          </Collapse>
-        )}
-      </Box>
-    );
-  };
+          {hasChildren && (
+            <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+              <List component="div" disablePadding>
+                {folder.children!.map((child) => renderFolder(child, depth + 1))}
+              </List>
+            </Collapse>
+          )}
+        </Box>
+      );
+    },
+    [expandedSet, handleToggle, onSelect]
+  );
+
+  const renderedFolders = useMemo(
+    () => folders.map((folder) => renderFolder(folder)),
+    [folders, renderFolder]
+  );
 
   return (
     <Box>
@@ -97,7 +107,7 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
           No hay carpetas disponibles
         </Typography>
       ) : (
-        <List>{folders.map((folder) => renderFolder(folder))}</List>
+        <List>{renderedFolders}</List>
       )}
     </Box>
   );

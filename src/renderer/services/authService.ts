@@ -13,7 +13,6 @@ interface TokenResponse {
 
 interface AuthStartResponse {
   authUrl: string;
-  requestId: string;
 }
 
 export const authService = {
@@ -29,16 +28,13 @@ export const authService = {
     }
   },
 
-  async handleCallback(
-    code: string,
-    requestId: string
-  ): Promise<TokenResponse> {
+  async handleCallback(code: string): Promise<TokenResponse> {
     try {
       const response = await axios.post<TokenResponse>(
         `${API_BASE}/auth/callback`,
         null,
         {
-          params: { code, requestId },
+          params: { code },
         }
       );
 

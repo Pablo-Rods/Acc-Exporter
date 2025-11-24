@@ -2,8 +2,11 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import * as keytar from "keytar";
 import * as path from "path";
 import isDev from "electron-is-dev";
+import { CallbackServer } from "./callbackServer";
 
 let mainWindow: BrowserWindow | null = null;
+let authWindow: BrowserWindow | null = null;
+let callbackServer: CallbackServer | null = null;
 
 const createWindow = () => {
   mainWindow = new BrowserWindow({
@@ -13,7 +16,6 @@ const createWindow = () => {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      // enableRemoteModule: false,
       sandbox: true,
     },
   });
@@ -68,30 +70,69 @@ ipcMain.handle("keychain:get", async (event, key) => {
   }
 });
 
-ipcMain.handle("auth:open-login-window", async () => {
-  const authWindow = new BrowserWindow({
-    width: 600,
-    height: 700,
-    parent: mainWindow || undefined,
-    modal: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      sandbox: true,
-    },
-  });
+ipcMain.handle("auth:open-login-window", async (event, authUrl: string) => {
+  console.log("=== AUTH WINDOW HANDLER CALLED ===");
+  console.log("Auth URL:", authUrl);
 
-  authWindow.loadURL("http://localhost:5188/api/Auth/start");
+  return new Promise<string | null>((resolve) => {
+    // Iniciar servidor de callback
+    callbackServer = new CallbackServer(3001);
+    callbackServer
+      .start((code) => {
+        console.log("Code received from callback server:", code);
+        if (code) {
+          if (authWindow && !authWindow.isDestroyed()) {
+            authWindow.close();
+          }
+          resolve(code);
+        }
+      })
+      .then(() => {
+        // Crear ventana de auth después de que el servidor esté listo
+        authWindow = new BrowserWindow({
+          width: 600,
+          height: 700,
+          parent: mainWindow ?? undefined,
+          modal: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+          },
+        });
 
-  return new Promise((resolve) => {
-    authWindow.webContents.on("will-redirect", (event, url) => {
-      if (url.includes("callback")) {
-        const urlObj = new URL(url);
-        const code = urlObj.searchParams.get("code");
-        authWindow.close();
-        resolve(code);
-      }
-    });
+        authWindow.loadURL(authUrl);
+
+        if (isDev) {
+          authWindow.webContents.openDevTools();
+        }
+
+        // Timeout después de 10 minutos
+        const timeout = setTimeout(() => {
+          console.log("=== TIMEOUT REACHED ===");
+          if (authWindow && !authWindow.isDestroyed()) {
+            authWindow.close();
+          }
+          authWindow = null;
+          if (callbackServer) {
+            callbackServer.stop();
+            callbackServer = null;
+          }
+          resolve(null);
+        }, 600000);
+
+        // Si el usuario cierra la ventana manualmente
+        if (authWindow) {
+          authWindow.on("closed", () => {
+            clearTimeout(timeout);
+            authWindow = null;
+            if (callbackServer) {
+              callbackServer.stop();
+              callbackServer = null;
+            }
+          });
+        }
+      });
   });
 });
 

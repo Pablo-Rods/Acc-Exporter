@@ -24,31 +24,27 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       setError(null);
 
       // Inicia el flujo OAuth
-      const { authUrl, requestId } = await authService.startAuth();
+      const { authUrl } = await authService.startAuth();
+      console.log("Auth URL:", authUrl);
 
-      // Abre el navegador con la URL de autenticación
-      window.open(authUrl, "acc-login", "width=600,height=700");
+      // Abre la ventana de login de Electron
+      const code = await window.electronAPI.openLoginWindow(authUrl);
 
-      // En una aplicación real, necesitarías un servidor intermediario
-      // que capture el callback y notifique a la app
-      // Por ahora, simula el callback después de que el usuario autoriza
+      if (!code) {
+        setError("Autenticación cancelada o falló");
+        return;
+      }
 
-      // Espera a que el usuario complete la autenticación
-      // En producción, esto debería venir de un IPC message
-      const code = await new Promise<string>((resolve) => {
-        const checkCode = setInterval(() => {
-          // Aquí iría la lógica para capturar el código del callback
-          // Por ahora, solo es un placeholder
-        }, 1000);
-      });
+      console.log("Authorization code received:", code);
 
       // Intercambia el código por un token
-      const tokenResponse = await authService.handleCallback(code, requestId);
+      const tokenResponse = await authService.handleCallback(code);
+
       onLoginSuccess(tokenResponse.accessToken);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Error en la autenticación"
-      );
+      const errorMessage =
+        err instanceof Error ? err.message : "Error en la autenticación";
+      setError(errorMessage);
       console.error("Login error:", err);
     } finally {
       setLoading(false);
