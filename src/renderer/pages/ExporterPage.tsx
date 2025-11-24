@@ -10,9 +10,6 @@ import {
   Alert,
   AlertColor,
   CircularProgress,
-  Card,
-  CardContent,
-  CardHeader,
   Table,
   TableBody,
   TableCell,
@@ -20,6 +17,16 @@ import {
   TableHead,
   TableRow,
   Paper,
+  useTheme,
+  useMediaQuery,
+  Checkbox,
+  ListItemText,
+  OutlinedInput,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  SelectChangeEvent,
 } from "@mui/material";
 import LogoutIcon from "@mui/icons-material/Logout";
 import FileDownloadIcon from "@mui/icons-material/FileDownload";
@@ -52,6 +59,10 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [previewData, setPreviewData] = useState<FileVersionData[] | null>(null);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
+
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isSmallScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleFolderSelect = (folderId: string, folderName: string) => {
     setSelectedFolderId(folderId);
@@ -164,20 +175,59 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
     }
   };
 
-  const handleColumnToggle = (columnName: string) => {
-    setSelectedColumns((prev) => {
-      if (prev.includes(columnName)) {
-        // Deselect
-        const newSelection = prev.filter((col) => col !== columnName);
-        console.log('Columnas seleccionadas:', newSelection);
-        return newSelection;
-      } else {
-        // Select
-        const newSelection = [...prev, columnName];
-        console.log('Columnas seleccionadas:', newSelection);
-        return newSelection;
-      }
-    });
+  // Define mapping between display names and property names
+  const columnMapping: Record<string, string> = {
+    'Versión': 'revisionNumber',
+    'Fecha creación': 'createTime',
+    'Creado por': 'createUserName',
+    'Última actualización': 'lastModifiedTime',
+    'Actualizado por': 'lastModifiedUserName',
+    'Tamaño': 'storageSize'
+  };
+
+  // Define all available columns (display names)
+  const standardColumns = [
+    'Versión',
+    'Fecha creación',
+    'Creado por',
+    'Última actualización',
+    'Actualizado por',
+    'Tamaño'
+  ];
+
+  const handleColumnChange = (event: SelectChangeEvent<string[]>) => {
+    const {
+      target: { value },
+    } = event;
+
+    // value contains the INCLUDED columns (display names).
+    // We need to calculate the EXCLUDED columns to update selectedColumns state.
+
+    const includedDisplayNames = typeof value === 'string' ? value.split(',') : value;
+
+    if (!previewData) return;
+
+    // Get all custom attribute names
+    const customAttrNames = Array.from(
+      new Set(
+        previewData.flatMap((file) =>
+          file.customAttributes?.map((attr) => attr.name) || []
+        )
+      )
+    );
+
+    // Combine standard columns and custom attributes (all display names)
+    const allDisplayNames = [...standardColumns, ...customAttrNames];
+
+    // Get excluded display names
+    const excludedDisplayNames = allDisplayNames.filter(col => !includedDisplayNames.includes(col));
+
+    // Convert excluded display names to property names
+    const excludedPropertyNames = excludedDisplayNames.map(displayName =>
+      columnMapping[displayName] || displayName // Use mapping for standard columns, keep custom attr names as-is
+    );
+
+    setSelectedColumns(excludedPropertyNames);
   };
 
   const isDownloadReady = selectedFolderId && selectedProjectData;
@@ -186,16 +236,18 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
     <>
       {/* AppBar */}
       <AppBar position="static" elevation={1}>
-        <Toolbar>
-          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            📊 ACC Metadata Exporter
+        <Toolbar sx={{ flexDirection: { xs: "column", sm: "row" }, py: { xs: 1, sm: 0 } }}>
+          <Typography variant="h6" sx={{ flexGrow: 1, fontWeight: 600, mb: { xs: 1, sm: 0 }, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+            ACC Metadata Exporter
           </Typography>
           <Button
             color="inherit"
             startIcon={<LogoutIcon />}
             onClick={handleLogout}
             variant="outlined"
+            size={isSmallScreen ? "small" : "medium"}
             sx={{
+              width: { xs: "100%", sm: "auto" },
               borderColor: "rgba(255,255,255,0.5)",
               "&:hover": {
                 borderColor: "white",
@@ -209,7 +261,7 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
       </AppBar>
 
       {/* Main Content */}
-      <Box sx={{ bgcolor: "#f5f5f5", minHeight: "calc(100vh - 64px)", py: 3 }}>
+      <Box sx={{ bgcolor: "#f5f5f5", minHeight: "calc(100vh - 64px)", py: { xs: 2, md: 3 } }}>
         <Container maxWidth="xl">
           {/* Alerts */}
           {alert && (
@@ -225,7 +277,7 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
           {/* Info Banner */}
           <Alert severity="info" sx={{ mb: 3 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-              ℹ️ Pasos para exportar:
+              Pasos para exportar:
             </Typography>
             <Typography variant="body2">
               1. Selecciona un proyecto • 2. Selecciona una carpeta • 3. Haz
@@ -247,7 +299,7 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
             <Grid item xs={12} md={8}>
               <Box
                 sx={{
-                  p: 4,
+                  p: { xs: 2, md: 4 },
                   bgcolor: "white",
                   borderRadius: 2,
                   border: "1px solid #e0e0e0",
@@ -257,11 +309,11 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                 {/* Header Section */}
                 <Box sx={{ textAlign: "center", mb: 4 }}>
                   <Typography
-                    variant="h5"
+                    variant={isMobile ? "h6" : "h5"}
                     color="textPrimary"
                     sx={{ mb: 2, fontWeight: 600 }}
                   >
-                    📊 Exportar Versiones de Archivos
+                    Exportar Versiones de Archivos
                   </Typography>
                   <Typography
                     variant="body1"
@@ -295,11 +347,12 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                     onClick={handlePreviewColumns}
                     disabled={!isDownloadReady || loadingPreview}
                     sx={{
-                      px: 4,
+                      px: { xs: 2, md: 4 },
                       py: 1.5,
-                      fontSize: "1rem",
+                      fontSize: { xs: "0.875rem", md: "1rem" },
                       fontWeight: 600,
                       mb: 2,
+                      width: { xs: "100%", sm: "auto" },
                     }}
                   >
                     {loadingPreview
@@ -310,52 +363,232 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
 
                 {/* Preview Data Table - Full Width */}
                 {previewData && previewData.length > 0 && (
-                  <Box sx={{ mb: 3, width: "100%", maxHeight: 600, overflow: "auto" }}>
+                  <Box sx={{ mb: 3, width: "100%" }}>
+
+                    {/* Column Selector Dropdown */}
+                    <Box sx={{ mb: 2 }}>
+                      <FormControl sx={{ m: 1, width: 300 }}>
+                        <InputLabel id="column-multiple-checkbox-label">Columnas Visibles</InputLabel>
+                        <Select
+                          labelId="column-multiple-checkbox-label"
+                          id="column-multiple-checkbox"
+                          multiple
+                          value={
+                            // Calculate included columns for the Select value (display names)
+                            (() => {
+                              const customAttrNames = Array.from(
+                                new Set(
+                                  previewData.flatMap((file) =>
+                                    file.customAttributes?.map((attr) => attr.name) || []
+                                  )
+                                )
+                              );
+                              const allDisplayNames = [...standardColumns, ...customAttrNames];
+
+                              // Filter out excluded columns by checking property names
+                              return allDisplayNames.filter(displayName => {
+                                const propertyName = columnMapping[displayName] || displayName;
+                                return !selectedColumns.includes(propertyName);
+                              });
+                            })()
+                          }
+                          onChange={handleColumnChange}
+                          input={<OutlinedInput label="Columnas Visibles" />}
+                          renderValue={(selected) => selected.join(', ')}
+                          MenuProps={{
+                            PaperProps: {
+                              style: {
+                                maxHeight: 48 * 4.5 + 8,
+                                width: 250,
+                              },
+                            },
+                          }}
+                        >
+                          {/* Standard columns */}
+                          {standardColumns.map((displayName) => {
+                            const propertyName = columnMapping[displayName];
+                            return (
+                              <MenuItem key={displayName} value={displayName}>
+                                <Checkbox checked={!selectedColumns.includes(propertyName)} />
+                                <ListItemText primary={displayName} />
+                              </MenuItem>
+                            );
+                          })}
+                          {/* Custom attribute columns */}
+                          {Array.from(
+                            new Set(
+                              previewData.flatMap((file) =>
+                                file.customAttributes?.map((attr) => attr.name) || []
+                              )
+                            )
+                          ).sort().map((name) => (
+                            <MenuItem key={name} value={name}>
+                              <Checkbox checked={!selectedColumns.includes(name)} />
+                              <ListItemText primary={name} />
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    </Box>
+
                     <TableContainer
                       component={Paper}
-                      elevation={3}
+                      elevation={1}
                       sx={{
-                        borderRadius: 2,
-                        overflow: 'hidden',
-                        border: '1px solid rgba(0, 0, 0, 0.08)',
+                        maxHeight: 600,
+                        borderRadius: 1,
+                        overflow: 'auto',
+                        border: '1px solid #d0d0d0',
                         '&::-webkit-scrollbar': {
-                          width: '10px',
-                          height: '10px',
+                          width: '8px',
+                          height: '8px',
                         },
                         '&::-webkit-scrollbar-track': {
-                          background: '#f1f1f1',
-                          borderRadius: '10px',
+                          background: '#f9f9f9',
                         },
                         '&::-webkit-scrollbar-thumb': {
-                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                          borderRadius: '10px',
+                          background: '#bdbdbd',
+                          borderRadius: '4px',
                           '&:hover': {
-                            background: 'linear-gradient(135deg, #556bd9 0%, #653a91 100%)',
+                            background: '#999',
                           },
                         },
                       }}
                     >
-                      <Table stickyHeader size="medium">
+                      <Table stickyHeader size="small">
                         <TableHead>
-                          <TableRow>
+                          <TableRow sx={{ bgcolor: '#f5f5f5' }}>
                             <TableCell
                               sx={{
-                                fontWeight: 700,
-                                fontSize: '0.95rem',
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                color: 'white',
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.5px',
-                                borderBottom: '3px solid #5568d3',
-                                py: 2,
-                                px: 3,
+                                fontWeight: 600,
+                                fontSize: '0.8rem',
+                                backgroundColor: '#f5f5f5',
+                                color: '#333',
+                                borderBottom: '1px solid #d0d0d0',
+                                py: 1.2,
+                                px: 2,
                                 position: 'sticky',
                                 top: 0,
                                 zIndex: 100,
                               }}
                             >
-                              📄 Nombre del Archivo
+                              Nombre
                             </TableCell>
+
+                            {!selectedColumns.includes('revisionNumber') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Versión
+                              </TableCell>
+                            )}
+
+                            {!selectedColumns.includes('createTime') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Fecha creación
+                              </TableCell>
+                            )}
+
+                            {!selectedColumns.includes('createUserName') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Creado por
+                              </TableCell>
+                            )}
+
+                            {!selectedColumns.includes('lastModifiedTime') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Última actualización
+                              </TableCell>
+                            )}
+
+                            {!selectedColumns.includes('lastModifiedUserName') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Actualizado por
+                              </TableCell>
+                            )}
+
+                            {!selectedColumns.includes('storageSize') && (
+                              <TableCell
+                                sx={{
+                                  fontWeight: 600,
+                                  fontSize: '0.8rem',
+                                  backgroundColor: '#f5f5f5',
+                                  color: '#333',
+                                  borderBottom: '1px solid #d0d0d0',
+                                  py: 1.2,
+                                  px: 2,
+                                  position: 'sticky',
+                                  top: 0,
+                                  zIndex: 100,
+                                }}
+                              >
+                                Tamaño
+                              </TableCell>
+                            )}
+
                             {/* Dynamic custom attribute columns */}
                             {Array.from(
                               new Set(
@@ -365,33 +598,22 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                               )
                             )
                               .sort()
+                              .filter(attrName => !selectedColumns.includes(attrName))
                               .map((attrName) => {
-                                const isSelected = selectedColumns.includes(attrName);
                                 return (
                                   <TableCell
                                     key={attrName}
-                                    onClick={() => handleColumnToggle(attrName)}
                                     sx={{
-                                      fontWeight: 700,
-                                      fontSize: '0.95rem',
-                                      background: isSelected
-                                        ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)'
-                                        : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                      color: 'white',
-                                      textTransform: 'uppercase',
-                                      letterSpacing: '0.5px',
-                                      borderBottom: isSelected ? '3px solid #b91c1c' : '3px solid #5568d3',
-                                      py: 2,
-                                      px: 3,
+                                      fontWeight: 600,
+                                      fontSize: '0.8rem',
+                                      backgroundColor: '#f5f5f5',
+                                      color: '#333',
+                                      borderBottom: '1px solid #d0d0d0',
+                                      py: 1.2,
+                                      px: 2,
                                       position: 'sticky',
                                       top: 0,
                                       zIndex: 100,
-                                      cursor: 'pointer',
-                                      transition: 'all 0.2s ease-in-out',
-                                      '&:hover': {
-                                        opacity: 0.9,
-                                        transform: 'scale(1.02)',
-                                      },
                                     }}
                                   >
                                     {attrName}
@@ -420,51 +642,127 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                                 key={file.urn || index}
                                 sx={{
                                   '&:nth-of-type(odd)': {
-                                    bgcolor: 'rgba(102, 126, 234, 0.04)',
+                                    bgcolor: '#fafafa',
                                   },
                                   '&:hover': {
-                                    bgcolor: 'rgba(102, 126, 234, 0.12)',
-                                    transform: 'scale(1.001)',
-                                    transition: 'all 0.2s ease-in-out',
-                                    boxShadow: '0 2px 8px rgba(102, 126, 234, 0.15)',
+                                    bgcolor: '#f0f0f0',
                                   },
-                                  transition: 'all 0.2s ease-in-out',
+                                  transition: 'background-color 0.2s ease',
                                 }}
                               >
                                 <TableCell
                                   sx={{
-                                    fontWeight: 600,
-                                    color: '#1a1a2e',
-                                    py: 2,
-                                    px: 3,
-                                    fontSize: '0.9rem',
-                                    borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
+                                    fontWeight: 500,
+                                    color: '#333',
+                                    py: 1,
+                                    px: 2,
+                                    fontSize: '0.8rem',
+                                    borderBottom: '1px solid #e8e8e8',
                                   }}
                                 >
                                   {file.name}
                                 </TableCell>
+                                {!selectedColumns.includes('revisionNumber') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.revisionNumber}
+                                  </TableCell>
+                                )}
+                                {!selectedColumns.includes('createTime') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.createTime}
+                                  </TableCell>
+                                )}
+                                {!selectedColumns.includes('createUserName') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.createUserName}
+                                  </TableCell>
+                                )}
+                                {!selectedColumns.includes('lastModifiedTime') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.lastModifiedTime}
+                                  </TableCell>
+                                )}
+                                {!selectedColumns.includes('lastModifiedUserName') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.lastModifiedUserName}
+                                  </TableCell>
+                                )}
+
+                                {!selectedColumns.includes('storageSize') && (
+                                  <TableCell
+                                    sx={{
+                                      color: '#555',
+                                      py: 1,
+                                      px: 2,
+                                      fontSize: '0.8rem',
+                                      borderBottom: '1px solid #e8e8e8',
+                                    }}
+                                  >
+                                    {file.storageSize}
+                                  </TableCell>
+                                )}
                                 {/* Show custom attribute values */}
-                                {allAttrNames.map((attrName) => {
-                                  const isSelected = selectedColumns.includes(attrName);
-                                  return (
-                                    <TableCell
-                                      key={attrName}
-                                      sx={{
-                                        color: '#2d3748',
-                                        py: 2,
-                                        px: 3,
-                                        fontSize: '0.9rem',
-                                        borderBottom: '1px solid rgba(0, 0, 0, 0.05)',
-                                        fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-                                        bgcolor: isSelected ? 'rgba(239, 68, 68, 0.08)' : undefined,
-                                      }}
-                                    >
-                                      {customAttrs.get(attrName) || (
-                                        <span style={{ color: '#cbd5e0', fontStyle: 'italic' }}>—</span>
-                                      )}
-                                    </TableCell>
-                                  );
-                                })}
+                                {allAttrNames
+                                  .filter(attrName => !selectedColumns.includes(attrName))
+                                  .map((attrName) => {
+                                    return (
+                                      <TableCell
+                                        key={attrName}
+                                        sx={{
+                                          color: '#666',
+                                          py: 1,
+                                          px: 2,
+                                          fontSize: '0.8rem',
+                                          borderBottom: '1px solid #e8e8e8',
+                                          fontFamily: 'system-ui, -apple-system, sans-serif',
+                                        }}
+                                      >
+                                        {customAttrs.get(attrName) || (
+                                          <span style={{ color: '#ccc' }}>—</span>
+                                        )}
+                                      </TableCell>
+                                    );
+                                  })}
                               </TableRow>
                             );
                           })}
@@ -483,18 +781,18 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                       <Typography
                         variant="body2"
                         sx={{
-                          color: '#667eea',
-                          fontWeight: 600,
-                          fontSize: '0.9rem',
+                          color: '#666',
+                          fontWeight: 500,
+                          fontSize: '0.8rem',
                         }}
                       >
-                        📊 Total: {previewData.length} archivo(s)
+                        Total: {previewData.length} archivo(s)
                       </Typography>
                       <Typography
                         variant="caption"
                         sx={{
-                          color: '#718096',
-                          fontStyle: 'italic',
+                          color: '#999',
+                          fontSize: '0.75rem',
                         }}
                       >
                         Vista previa de datos
@@ -518,10 +816,11 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
                     onClick={handleDownloadExcel}
                     disabled={!isDownloadReady || downloadingExcel}
                     sx={{
-                      px: 4,
+                      px: { xs: 2, md: 4 },
                       py: 1.5,
-                      fontSize: "1rem",
+                      fontSize: { xs: "0.875rem", md: "1rem" },
                       fontWeight: 600,
+                      width: { xs: "100%", sm: "auto" },
                     }}
                   >
                     {downloadingExcel
@@ -541,13 +840,6 @@ const ExporterPage: React.FC<ExporterPageProps> = ({
               </Box>
             </Grid>
           </Grid>
-
-          {/* Footer */}
-          <Box sx={{ mt: 6, textAlign: "center" }}>
-            <Typography variant="caption" color="textSecondary">
-              ACC Metadata Exporter v1.0 • Powered by Ayesa • © 2024
-            </Typography>
-          </Box>
         </Container>
       </Box>
     </>

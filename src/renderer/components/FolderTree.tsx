@@ -101,13 +101,13 @@ export const FolderTree: React.FC<FolderTreeProps> = ({
   );
 
   return (
-    <Box>
+    <Box sx={{ overflowX: 'auto' }}>
       {folders.length === 0 ? (
         <Typography color="textSecondary" variant="body2">
           No hay carpetas disponibles
         </Typography>
       ) : (
-        <List>{renderedFolders}</List>
+        <List sx={{ minWidth: 'fit-content' }}>{renderedFolders}</List>
       )}
     </Box>
   );
