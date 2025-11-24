@@ -191,9 +191,9 @@ export const ProjectSelector: React.FC<ProjectSelectorProps> = ({
   };
 
   return (
-    <Card>
-      <CardHeader title="Seleccionar Proyecto y Carpeta" />
-      <CardContent>
+    <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <CardHeader title="Seleccionar Proyecto y Carpeta" titleTypographyProps={{ variant: 'h6' }} />
+      <CardContent sx={{ flexGrow: 1, p: { xs: 2, md: 3 } }}>
         {alert && (
           <Alert
             severity={alert.severity}

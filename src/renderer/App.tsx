@@ -38,7 +38,7 @@ const App: React.FC = () => {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      <Container maxWidth="xl" sx={{ py: { xs: 2, md: 4 }, px: { xs: 2, md: 3 } }}>
         {!isAuthenticated ? (
           <LoginPage onLoginSuccess={handleLoginSuccess} />
         ) : (

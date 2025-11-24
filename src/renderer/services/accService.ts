@@ -15,19 +15,6 @@ export interface Folder {
   isFolder: boolean;
 }
 
-export interface FileMetadata {
-  id: string;
-  name: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface MetadataField {
-  fieldName: string;
-  displayName: string;
-  dataType: string;
-  isSelected: boolean;
-}
-
 export interface FolderTreeNode extends Folder {
   children?: FolderTreeNode[];
 }
@@ -112,9 +99,13 @@ class AccService {
     );
   }
 
+  /**
+   * Obtiene todos los proyectos disponibles
+   * Endpoint: GET /api/Project/all
+   */
   async getProjects(): Promise<Project[]> {
     try {
-      const response = await this.client.get<Project[]>("/acc/projects");
+      const response = await this.client.get<Project[]>("/Project/all");
       return response.data || [];
     } catch (error) {
       console.error("Error obteniendo proyectos:", error);
@@ -122,6 +113,10 @@ class AccService {
     }
   }
 
+  /**
+   * Obtiene la estructura de carpetas de un proyecto
+   * Endpoint: GET /api/Project/{projectId}/structure
+   */
   async getFolders(
     projectId: string,
     hubId: string,
@@ -133,7 +128,6 @@ class AccService {
       }
 
       const params = new URLSearchParams({
-        projectId,
         hubId,
       });
 
@@ -142,7 +136,7 @@ class AccService {
       }
 
       const response = await this.client.get<Folder[]>(
-        `/acc/folders?${params.toString()}`
+        `/Project/${projectId}/structure?${params.toString()}`
       );
       return response.data || [];
     } catch (error) {
@@ -151,90 +145,39 @@ class AccService {
     }
   }
 
-  async getFiles(projectId: string, folderId: string): Promise<FileMetadata[]> {
-    try {
-      if (!projectId || !folderId) {
-        throw new Error("projectId y folderId son requeridos");
-      }
-
-      const response = await this.client.get<FileMetadata[]>(
-        `/acc/files?projectId=${projectId}&folderId=${folderId}`
-      );
-      return response.data || [];
-    } catch (error) {
-      console.error("Error obteniendo archivos:", error);
-      throw error;
-    }
-  }
-
-  async getFileMetadata(
-    projectId: string,
-    fileId: string
-  ): Promise<Record<string, unknown>> {
-    try {
-      if (!projectId || !fileId) {
-        throw new Error("projectId y fileId son requeridos");
-      }
-
-      const response = await this.client.get<Record<string, unknown>>(
-        `/acc/file-metadata?projectId=${projectId}&fileId=${fileId}`
-      );
-      return response.data || {};
-    } catch (error) {
-      console.error("Error obteniendo metadatos del archivo:", error);
-      throw error;
-    }
-  }
-
-  async getMetadataFields(
+  /**
+   * Obtiene las versiones de archivos para preview
+   * Endpoint: POST /api/acc/files/versions
+   */
+  async getFileVersionsPreview(
+    hubId: string,
     projectId: string,
     folderId: string
-  ): Promise<MetadataField[]> {
+  ): Promise<FileVersionResponse> {
     try {
-      if (!projectId || !folderId) {
-        throw new Error("projectId y folderId son requeridos");
+      if (!hubId || !projectId || !folderId) {
+        throw new Error("hubId, projectId y folderId son requeridos");
       }
 
-      const response = await this.client.get<MetadataField[]>(
-        `/acc/metadata-fields?projectId=${projectId}&folderId=${folderId}`
-      );
-      return response.data || [];
-    } catch (error) {
-      console.error("Error obteniendo campos de metadatos:", error);
-      throw error;
-    }
-  }
-
-  async exportToExcel(
-    files: Array<{ filename: string; metadata: Record<string, unknown> }>,
-    selectedColumns: string[]
-  ): Promise<Blob> {
-    try {
-      if (!files || files.length === 0) {
-        throw new Error("No hay archivos para exportar");
-      }
-
-      if (!selectedColumns || selectedColumns.length === 0) {
-        throw new Error("Debe seleccionar al menos una columna");
-      }
-
-      const response = await this.client.post(
-        "/acc/export/excel",
+      const response = await this.client.post<FileVersionResponse>(
+        "/acc/files/versions",
         {
-          files,
-          selectedColumns,
-        },
-        {
-          responseType: "blob",
+          hubId,
+          projectId,
+          folderId,
         }
       );
       return response.data;
     } catch (error) {
-      console.error("Error exportando a Excel:", error);
+      console.error("Error obteniendo preview de versiones:", error);
       throw error;
     }
   }
 
+  /**
+   * Exporta las versiones de archivos a Excel
+   * Endpoint: POST /api/acc/files/versions/excel
+   */
   async exportFilesVersionsToExcel(
     hubId: string,
     projectId: string,
@@ -261,31 +204,6 @@ class AccService {
       return response.data;
     } catch (error) {
       console.error("Error exportando versiones a Excel:", error);
-      throw error;
-    }
-  }
-
-  async getFileVersionsPreview(
-    hubId: string,
-    projectId: string,
-    folderId: string
-  ): Promise<FileVersionResponse> {
-    try {
-      if (!hubId || !projectId || !folderId) {
-        throw new Error("hubId, projectId y folderId son requeridos");
-      }
-
-      const response = await this.client.post<FileVersionResponse>(
-        "/acc/files/versions",
-        {
-          hubId,
-          projectId,
-          folderId,
-        }
-      );
-      return response.data;
-    } catch (error) {
-      console.error("Error obteniendo preview de versiones:", error);
       throw error;
     }
   }

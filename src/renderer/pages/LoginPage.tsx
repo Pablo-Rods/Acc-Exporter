@@ -25,7 +25,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
 
       // Inicia el flujo OAuth
       const { authUrl } = await authService.startAuth();
-      console.log("Auth URL:", authUrl);
 
       // Abre la ventana de login de Electron
       const code = await window.electronAPI.openLoginWindow(authUrl);
@@ -35,8 +34,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
         return;
       }
 
-      console.log("Authorization code received:", code);
-
       // Intercambia el código por un token
       const tokenResponse = await authService.handleCallback(code);
 
@@ -45,7 +42,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
       const errorMessage =
         err instanceof Error ? err.message : "Error en la autenticación";
       setError(errorMessage);
-      console.error("Login error:", err);
     } finally {
       setLoading(false);
     }
